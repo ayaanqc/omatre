@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flappy — Simple Canvas Game</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0B0D0E; color: #F4F1EA; font-family: system-ui, -apple-system, sans-serif; }
+  .wrap { text-align: center; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: 1px; }
+  p { margin: 0 0 12px; color: #A8B0AB; font-size: 13px; }
+  canvas { background: #87CEEB; border: 2px solid #343B43; border-radius: 12px; max-width: 92vw; touch-action: none; cursor: pointer; }
+  .hud { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+  button { background: #C9A86A; color: #0B0D0E; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 800; font-size: 14px; cursor: pointer; }
+  button:active { transform: scale(0.97); }
+  .score { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; background: #1C2024; border: 1px solid #343B43; border-radius: 8px; padding: 10px 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FLAPPY</h1>
+  <p>Space / Click / Tap to flap</p>
+  <canvas id="game" width="400" height="600" aria-label="Flappy bird game canvas"></canvas>
+  <div class="hud">
+    <div class="score">Score: <span id="score">0</span> : Best: <span id="best">0</span></div>
+    <button id="restart">Restart</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const restartBtn = document.getElementById('restart');
+
+let best = Number(localStorage.getItem('flappy_best') || 0);
+bestEl.textContent = best;
+
+let bird, pipes, score, running, frames;
+
+function reset() {
+  bird = { x: 80, y: 280, vy: 0, r: 14 };
+  pipes = [];
+  score = 0;
+  frames = 0;
+  running = true;
+  scoreEl.textContent = '0';
+}
+
+function flap() {
+  if (!running) { reset(); return; }
+  bird.vy = -7.5;
+}
+
+function addPipe() {
+  const gap = 150;
+  const top = 60 + Math.random() * 300;
+  pipes.push({ x: 400, top, gap, w: 62, passed: false });
+}
+
+function update() {
+  if (!running) return;
+  frames++;
+  bird.vy += 0.45;
+  bird.y += bird.vy;
+  if (frames % 95 === 0) addPipe();
+  for (const p of pipes) {
+    p.x -= 2.6;
+    if (!p.passed && p.x + p.w < bird.x) { p.passed = true; score++; scoreEl.textContent = score; }
+  }
+  pipes = pipes.filter(p => p.x + p.w > -10);
+  // collisions
+  if (bird.y + bird.r > 560 || bird.y - bird.r < 0) return die();
+  for (const p of pipes) {
+    const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + p.w;
+    if (inX && (bird.y - bird.r < p.top || bird.y + bird.r > p.top + p.gap)) return die();
+  }
+}
+
+function die() {
+  running = false;
+  if (score > best) { best = score; localStorage.setItem('flappy_best', best); bestEl.textContent = best; }
+}
+
+function draw() {
+  // sky
+  ctx.fillStyle = '#87CEEB';
+  ctx.fillRect(0, 0, 400, 600);
+  // clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  const cx = (frames * 0.4) % 480;
+  for (const [x, y] of [[100, 90], [280, 140], [380, 60]]) {
+    const dx = ((x - cx) % 480 + 480) % 480 - 40;
+    ctx.beginPath(); ctx.arc(dx, y, 18, 0, 7); ctx.arc(dx + 18, y, 14, 0, 7); ctx.arc(dx - 18, y, 13, 0, 7); ctx.fill();
+  }
+  // pipes
+  for (const p of pipes) {
+    ctx.fillStyle = '#2E9E44';
+    ctx.fillRect(p.x, 0, p.w, p.top);
+    ctx.fillRect(p.x, p.top + p.gap, p.w, 600 - p.top - p.gap);
+    ctx.fillStyle = '#257A36';
+    ctx.fillRect(p.x, p.top - 14, p.w, 14);
+    ctx.fillRect(p.x, p.top + p.gap, p.w, 14);
+  }
+  // ground
+  ctx.fillStyle = '#DED895';
+  ctx.fillRect(0, 560, 400, 40);
+  ctx.fillStyle = '#7AB648';
+  ctx.fillRect(0, 560, 400, 10);
+  // bird
+  ctx.fillStyle = '#FFD93D';
+  ctx.beginPath(); ctx.arc(bird.x, bird.y, bird.r, 0, 7); ctx.fill();
+  ctx.fillStyle = '#FF9F1C';
+  ctx.beginPath(); ctx.arc(bird.x + 2, bird.y + 6, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(bird.x + 5, bird.y - 4, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(bird.x + 6, bird.y - 4, 2.5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#FF6B35';
+  ctx.fillRect(bird.x + 10, bird.y - 1, 9, 6);
+  // score big
+  ctx.fillStyle = '#fff';
+  ctx.font = '800 44px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(score, 200, 90);
+  if (!running) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 400, 600);
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 30px system-ui';
+    ctx.fillText(score > 0 ? 'Game Over' : 'Tap to start', 200, 280);
+    ctx.font = '600 15px system-ui';
+    ctx.fillText('Click / Space to retry', 200, 310);
+  }
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
+});
+canvas.addEventListener('pointerdown', flap);
+restartBtn.addEventListener('click', reset);
+
+reset();
+running = false; // wait for first input
+loop();
+</script>
+</body>
+</html>
